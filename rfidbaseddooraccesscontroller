@@ -1,0 +1,122 @@
+#step-1 flask server for backened
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import mysql.connector
+import datetime
+
+app = Flask(__name__)
+CORS(app)
+
+# Database configuration
+db_config = { 'user': 'your_username', 'password': 'your_password', 'host': 'your_host','database': 'your_database'}
+
+sensor_data = None
+
+# Endpoint to receive RFID data from ESP32
+@app.route('/api/rfid_data', methods=['POST'])
+def receive_sensor_data():
+    global sensor_data
+    try:
+        sensor_data = request.json  # Store the JSON data sent by the ESP32
+        print(sensor_data)  # Print the received data
+
+        # Check if RFID exists in the database
+        rfid = sensor_data.get('rfid')
+        if rfid:
+            if check_rfid_in_database(rfid):
+                return jsonify({"relay": "success"}), 200
+            else:
+                return jsonify({"relay": "failure", "message": "RFID not registered"}), 404
+        else:
+            return jsonify({"status": "error", "message": "RFID not provided"}), 400
+
+    except Exception as e:
+        print(f'Error receiving data: {e}')
+        return jsonify({"status": "error"}), 400
+
+# Function to check if RFID exists in the database
+def check_rfid_in_database(rfid):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM students WHERE rfid = %s"
+        cursor.execute(query, (rfid,))
+        result = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        return result is not None
+
+    except mysql.connector.Error as err:
+        print(f'Error checking RFID in database: {err}')
+        return False
+
+# Endpoint to send RFID data to the frontend
+@app.route('/api/send_rfid_data', methods=['GET'])
+def get_sensor_data():
+    global sensor_data
+    if sensor_data:
+        response = jsonify(sensor_data)
+        sensor_data = None  # Clear the sensor_data after sending it to the frontend
+        return response, 200
+    else:
+        return jsonify({"error": "No data available"}), 404
+
+# Endpoint to submit form data
+@app.route('/api/submit_form', methods=['POST'])
+def submit_form():
+    data = request.json
+    rfid = data.get('rfid')
+    name = data.get('name')
+    student_id = data.get('id')
+    roll_number = data.get('roll_number')
+    student_class = data.get('class')
+    timestamp = datetime.datetime.now()
+
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        # Check if RFID already exists in the database
+        if check_rfid_in_database(rfid):
+            return jsonify({"status": "error", "message": "User is already registered"}), 409
+
+        # Insert new data into the database
+        query = """
+        INSERT INTO students (rfid, name, student_id, roll_number, student_class, timestamp)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query, (rfid, name, student_id, roll_number, student_class, timestamp))
+        conn.commit()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({"status": "success", "message": "Data stored successfully"}), 200
+    except mysql.connector.Error as err:
+        print(f'Error: {err}')
+        return jsonify({"status": "error", "message": str(err)}), 500
+
+# Endpoint to retrieve all records (logs) from the database
+@app.route('/api/logs', methods=['GET'])
+def get_logs():
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor(dictionary=True)
+
+        query = "SELECT * FROM students"
+        cursor.execute(query)
+        logs = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify(logs), 200
+    except mysql.connector.Error as err:
+        print(f'Error: {err}')
+        return jsonify({"status": "error", "message": str(err)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=3000)
