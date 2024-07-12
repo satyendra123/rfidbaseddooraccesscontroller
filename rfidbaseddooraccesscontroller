@@ -120,3 +120,78 @@ def get_logs():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3000)
+
+#Step-2 react js code
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const RFIDForm = () => {
+    const [rfidData, setRfidData] = useState({});
+    const [formData, setFormData] = useState({
+        rfid: '',
+        name: '',
+        id: '',
+        roll_number: '',
+        class: ''
+    });
+    const [logs, setLogs] = useState([]);
+
+    useEffect(() => {
+        const fetchRfidData = async () => {
+            try {
+                const response = await axios.get('http://localhost:3000/api/send_rfid_data');
+                setRfidData(response.data);
+                setFormData({ ...formData, rfid: response.data.rfid });
+            } catch (error) {
+                console.error('Error fetching RFID data:', error);
+            }
+        };
+
+        fetchRfidData();
+    }, []);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            await axios.post('http://localhost:3000/api/submit_form', formData);
+            alert('Form submitted successfully');
+        } catch (error) {
+            console.error('Error submitting form:', error);
+        }
+    };
+
+    const fetchLogs = async () => {
+        try {
+            const response = await axios.get('http://localhost:3000/api/logs');
+            setLogs(response.data);
+        } catch (error) {
+            console.error('Error fetching logs:', error);
+        }
+    };
+
+    return (
+        <div>
+            <form onSubmit={handleSubmit}>
+                <input type="text" name="rfid" value={formData.rfid} readOnly />
+                <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Name" />
+                <input type="text" name="id" value={formData.id} onChange={handleChange} placeholder="ID" />
+                <input type="text" name="roll_number" value={formData.roll_number} onChange={handleChange} placeholder="Roll Number" />
+                <input type="text" name="class" value={formData.class} onChange={handleChange} placeholder="Class" />
+                <button type="submit">Submit</button>
+            </form>
+            <button onClick={fetchLogs}>Fetch Logs</button>
+            <ul>
+                {logs.map(log => (
+                    <li key={log.id}>{JSON.stringify(log)}</li>
+                ))}
+            </ul>
+        </div>
+    );
+};
+
+export default RFIDForm;
