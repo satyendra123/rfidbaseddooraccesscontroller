@@ -1,0 +1,23 @@
+#step-1 i have used the esp32 to read the wiegand data for barco_rfid project. in this i have connected the D0 to pin16. and D1 ko connect krenge pin17 ko aur smps ke v- wale pin se esp32 ke gnd par connect krenge
+#include <Wiegand.h>
+WIEGAND wg;
+#define D0_PIN 16  // Replace with your GPIO pin number for D0
+#define D1_PIN 17  // Replace with your GPIO pin number for D1
+
+void setup() {
+  Serial.begin(9600);
+
+  // Initialize the Wiegand reader with D0 and D1 pins
+  wg.begin(D0_PIN, D1_PIN);
+}
+
+void loop() {
+  if (wg.available()) {
+    Serial.print("Wiegand HEX = ");
+    Serial.print(wg.getCode(), HEX);
+    Serial.print(", DECIMAL = ");
+    Serial.print(wg.getCode());
+    Serial.print(", Type W");
+    Serial.println(wg.getWiegandType());
+  }
+}
